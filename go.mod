@@ -5,6 +5,7 @@ go 1.18
 require github.com/golang-jwt/jwt v3.2.2+incompatible
 
 require (
+	github.com/cloudinary/cloudinary-go v1.7.0
 	github.com/cloudinary/cloudinary-go/v2 v2.1.0 // indirect
 	github.com/creasty/defaults v1.5.1 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
