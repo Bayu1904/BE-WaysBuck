@@ -15,6 +15,7 @@ type TransactionRepository interface {
 	UpdateTransactions(status string, ID string) error
 	GetOneTransaction(ID int) (models.Transaction, error)
 	FindbyIDTransaction(UserID int, Status string) (models.Transaction, error)
+	AllProductById(UserID int) ([]models.Transaction, error)
 }
 
 func RepositoryTransaction(db *gorm.DB) *repository {
@@ -79,6 +80,13 @@ func (r *repository) FindbyIDTransaction(UserID int, Status string) (models.Tran
 func (r *repository) GetOneTransaction(ID int) (models.Transaction, error) {
 	var transaction models.Transaction
 	err := r.db.Preload("Product").Preload("Product.User").Preload("Buyer").Preload("Seller").First(&transaction, "id = ?", ID).Error
+
+	return transaction, err
+}
+
+func (r *repository) AllProductById(UserID int) ([]models.Transaction, error) {
+	var transaction []models.Transaction
+	err := r.db.Preload("User").Preload("Carts").Preload("Carts.Product").Preload("Carts.Toping").Find(&transaction, "user_id = ?", UserID).Error
 
 	return transaction, err
 }
