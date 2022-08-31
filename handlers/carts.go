@@ -11,6 +11,7 @@ import (
 
 	// "github.com/go-playground/validator/v10"
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 )
 
@@ -57,8 +58,29 @@ func (h *handlerCart) GetCart(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func (h *handlerCart) GetTransactionID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	userInfo := r.Context().Value("userInfo").(jwt.MapClaims)
+	userId := int(userInfo["id"].(float64))
+
+	cart, err := h.CartRepository.GetTransactionID(userId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	response := dto.SuccessResult{Code: http.StatusOK, Data: cart}
+	json.NewEncoder(w).Encode(response)
+}
+
 func (h *handlerCart) CreateCart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	userInfo := r.Context().Value("userInfo").(jwt.MapClaims)
+	userId := int(userInfo["id"].(float64))
 
 	request := new(cartdto.CartRequest)
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -77,10 +99,11 @@ func (h *handlerCart) CreateCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	transaction, err := h.CartRepository.GetTransactionID(userId)
+
 	cartForm := models.Cart{
 		ProductID:     request.ProductID,
-		TopingID:      request.TopingID,
-		TransactionID: request.TransactionID,
+		TransactionID: transaction.ID,
 		Qty:           request.Qty,
 		SubAmount:     request.SubAmount,
 	}
@@ -93,17 +116,8 @@ func (h *handlerCart) CreateCart(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(response)
 		return
 	}
-	toping, _ := h.CartRepository.FindToppingsID(request.TopingID)
 
-	cart := models.Cart{
-		ProductID:     request.ProductID,
-		TransactionID: request.TransactionID,
-		Qty:           request.Qty,
-		SubAmount:     request.SubAmount,
-		Toping:        toping,
-	}
-
-	data, err := h.CartRepository.CreateCart(cart)
+	data, err := h.CartRepository.CreateCart(cartForm)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}

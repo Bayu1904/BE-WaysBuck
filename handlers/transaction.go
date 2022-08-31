@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/coreapi"
 	"github.com/midtrans/midtrans-go/snap"
@@ -75,39 +77,47 @@ func (h *handlerTransaction) CreateTransaction(w http.ResponseWriter, r *http.Re
 	userInfo := r.Context().Value("userInfo").(jwt.MapClaims)
 	idUser := int(userInfo["id"].(float64))
 
-	// var request transactiondto.CreateTransaction
-	// err := json.NewDecoder(r.Body).Decode(&request)
-	// if err != nil {
-	// 	w.WriteHeader(http.StatusBadRequest)
-	// 	response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
-	// 	json.NewEncoder(w).Encode(response)
-	// 	return
-	// }
+	request := new(transactiondto.CreateTransaction)
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+	}
+
+	validate := validator.New()
+	err := validate.Struct(request)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+	}
+
+	var TransIdIsMatch = false
+	var TransactionId int
+	for !TransIdIsMatch {
+		TransactionId = idUser + rand.Intn(10000) - rand.Intn(100)
+		transactionData, _ := h.TransactionRepository.GetTransaction(TransactionId)
+		if transactionData.ID == 0 {
+			TransIdIsMatch = true
+		}
+	}
 
 	transaction := models.Transaction{
+		ID:     TransactionId,
 		UserID: idUser,
 		Status: "active",
 	}
 
-	data, err := h.TransactionRepository.CreateTransaction(transaction)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+	statusCheck, _ := h.TransactionRepository.FindbyIDTransaction(idUser, "active")
+	if statusCheck.Status == "active" {
+		response := dto.SuccessResult{Code: http.StatusOK, Data: transaction}
+		json.NewEncoder(w).Encode(response)
+	} else {
+		data, _ := h.TransactionRepository.CreateTransaction(transaction)
+		w.WriteHeader(http.StatusOK)
+		response := dto.SuccessResult{Code: 200, Data: data}
 		json.NewEncoder(w).Encode(response)
 	}
-
-	dataTransactions, err := h.TransactionRepository.GetTransaction(data.ID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err.Error())
-		return
-	}
-
-	fmt.Println(dataTransactions)
-	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Code: 200, Data: dataTransactions}
-	json.NewEncoder(w).Encode(response)
-
 }
 
 func (h handlerTransaction) DeleteTransaction(w http.ResponseWriter, r *http.Request) {
